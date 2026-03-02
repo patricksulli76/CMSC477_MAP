@@ -1,6 +1,10 @@
 import map
 
+<<<<<<< HEAD:map_test.py
 map_graph = map.Map(13,11)
+=======
+map_graph = map.Map(13,10,(1,5),(11,5))
+>>>>>>> 3b31684 (moved some shit):lab1/map_test.py
 
 apriltag_to_grid = {
     30: (3, 8, "L"),
@@ -40,4 +44,4 @@ map_graph.add_rect(11, 5, color='orangered')
 
 map_graph.show_graph()
 
-print(map_graph.graph)
+print(map_graph.graph_heuristic)

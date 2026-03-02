@@ -1,10 +1,11 @@
 
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
+import math
 
 class Map:
 
-    def __init__(self, size_x, size_y):
+    def __init__(self, size_x, size_y,start, finish):
         self.fig, self.ax = plt.subplots()
 
         self.ax.set_xlim(0, size_x)
@@ -14,8 +15,11 @@ class Map:
         self.ax.set_yticks(range(0, size_y+1))
         self.ax.grid(True)
         self.graph = {}
+        self.graph_heuristic = {}
         for x in range(0, size_x):
             for y in range(0, size_y):
+                distance = math.hypot((finish[0] - x)**2,(finish[1] - y)**2)
+                self.graph_heuristic[(x,y)] = distance
                 self.graph[(x, y)] = []
                 if x > 0:
                     self.graph[(x, y)].append((x - 1, y))
@@ -35,6 +39,7 @@ class Map:
                     self.graph[(x, y)].append((x + 1, y + 1))
 
     def add_obstacle(self, x, y):
+        self.graph_heuristic[(x,y)] = math.inf
         for i in self.graph[(x, y)]:
             self.graph[i].remove((x, y))
         self.graph.pop((x, y))
