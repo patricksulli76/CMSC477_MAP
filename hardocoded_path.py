@@ -7,6 +7,8 @@ fig, ax = plt.subplots()
 # AprilTag ID -> (x, y) of the obstacle grid cell’s lower-left corner
 # (Multiple tags can share the same (x,y) because they’re mounted on the same obstacle square.)
 
+import map
+
 apriltag_to_grid = {
     30: (3, 8, "L"),
     31: (3, 8, "R"),
