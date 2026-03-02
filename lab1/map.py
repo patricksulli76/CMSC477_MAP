@@ -49,7 +49,17 @@ class Map:
         self.ax.add_patch(Rectangle((x, y), w, h, facecolor=color))
 
     def add_point(self, x, y):
-        self.ax.scatter(x + 0.5, y + 0.5)
+        self.ax.scatter(x , y )
+
+    def remove_last_point(self):
+        # Get all collections (scatter plots) from the axes
+        collections = self.ax.collections
+        if collections:
+            # Remove the last scatter plot collection
+            try:
+                collections[-1].remove()
+            except:
+                pass
 
     def add_edge(self, x1, y1, x2, y2):
         self.ax.plot([x1 + 0.5, x2 + 0.5],
