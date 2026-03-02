@@ -25,15 +25,13 @@ class Map:
             for y in range(size_y):
                 self.graph[(x, y)] = []
 
-                # 8-connected grid
-                for dx in [-1, 0, 1]:
-                    for dy in [-1, 0, 1]:
-                        if dx == 0 and dy == 0:
-                            continue
+                # 4-connected grid (no diagonals)
+                for dx, dy in [(1,0), (-1,0), (0,1), (0,-1)]:
 
-                        nx, ny = x + dx, y + dy
-                        if 0 <= nx < size_x and 0 <= ny < size_y:
-                            self.graph[(x, y)].append((nx, ny))
+                    nx, ny = x + dx, y + dy
+
+                    if 0 <= nx < size_x and 0 <= ny < size_y:
+                        self.graph[(x, y)].append((nx, ny))
 
     def add_obstacle(self, x, y):
         if (x, y) not in self.graph:
