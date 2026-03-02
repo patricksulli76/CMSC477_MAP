@@ -4,6 +4,7 @@ import numpy as np
 import time
 import traceback
 from queue import Empty
+import robomaster
 from robomaster import robot
 from robomaster import camera
 
@@ -36,6 +37,19 @@ def draw_detections(frame, detections):
         cv2.line(frame, top_left, bottom_right, color=(0, 0, 255), thickness=2)
         cv2.line(frame, top_right, bottom_left, color=(0, 0, 255), thickness=2)
 
+
+        tag_id = str(detection.tag_id)
+        # Position the text slightly above the top-left corner
+        text_position = (top_left[0], top_left[1] - 10)
+        
+        cv2.putText(frame, 
+                    f"ID: {tag_id}", 
+                    text_position, 
+                    cv2.FONT_HERSHEY_SIMPLEX, 
+                    0.8,              # Font scale (size)
+                    (0, 255, 0),      # Color (BGR format - Green)
+                    2)                # Thickness
+
 def detect_tag_loop(ep_robot, ep_chassis, ep_camera, apriltag):
     while True:
         try:
@@ -54,9 +68,39 @@ def detect_tag_loop(ep_robot, ep_chassis, ep_camera, apriltag):
             detection = detections[0]
 
             t_ca, R_ca = get_pose_apriltag_in_camera_frame(detection)
+            id = detection.tag_id
             print('t_ca', t_ca)
+            print('ID', id)
 
         draw_detections(img, detections)
         cv2.imshow("img", img)
         if cv2.waitKey(1) == ord('q'):
             break
+
+if __name__ == '__main__':
+
+    robomaster.config.ROBOT_IP_STR = "192.168.50.113"
+    ep_robot = robot.Robot()
+    ep_robot.initialize(conn_type="sta",sn="3JKCH8800100YN")
+
+    ep_chassis = ep_robot.chassis
+
+    ep_camera = ep_robot.camera
+
+    ep_camera.start_video_stream(display=False)
+
+    K = np.array([[314, 0, 320], [0, 314, 180], [0, 0, 1]]) # Camera focal length and center pixel
+    marker_size_m = 0.153 # Size of the AprilTag in meters
+    apriltag = AprilTagDetector(K, threads=2, marker_size_m=marker_size_m)
+
+    try:
+        detect_tag_loop(ep_robot, ep_chassis, ep_camera, apriltag)
+    except KeyboardInterrupt:
+        pass
+    except Exception as e:
+        print(traceback.format_exc())
+    finally:
+        print('Waiting for robomaster shutdown')
+        time.sleep(1)
+        ep_camera.stop_video_stream()
+        ep_robot.close()
