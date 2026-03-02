@@ -1,10 +1,6 @@
 import map
 
-<<<<<<< HEAD:map_test.py
-map_graph = map.Map(13,11)
-=======
 map_graph = map.Map(13,10,(1,5),(11,5))
->>>>>>> 3b31684 (moved some shit):lab1/map_test.py
 
 apriltag_to_grid = {
     30: (3, 8, "L"),
