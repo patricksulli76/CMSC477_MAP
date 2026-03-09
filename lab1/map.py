@@ -1,4 +1,6 @@
 
+import matplotlib
+matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 import math
@@ -6,6 +8,7 @@ import math
 class Map:
 
     def __init__(self, size_x, size_y,start, finish):
+        plt.ion()
         self.fig, self.ax = plt.subplots()
 
         self.ax.set_xlim(0, size_x)
@@ -16,6 +19,8 @@ class Map:
         self.ax.grid(True)
         self.graph = {}
         self.graph_heuristic = {}
+        self.start = start
+        self.finish = finish
         for x in range(0, size_x):
             for y in range(0, size_y):
                 distance = math.hypot((finish[0] - x)**2,(finish[1] - y)**2)
@@ -49,7 +54,7 @@ class Map:
         self.ax.add_patch(Rectangle((x, y), w, h, facecolor=color))
 
     def add_point(self, x, y):
-        self.ax.scatter(x , y )
+        self.ax.scatter(x , y, color="blue", marker="o")
 
     def remove_last_point(self):
         # Get all collections (scatter plots) from the axes
@@ -66,8 +71,9 @@ class Map:
                 [y1 + 0.5, y2 + 0.5])
 
     def show_graph(self):
-        plt.title("Map")
-        plt.show()
+        self.fig.canvas.draw_idle()
+        self.fig.canvas.flush_events()
+        plt.pause(0.001)
 
 
     
