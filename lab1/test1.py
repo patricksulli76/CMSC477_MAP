@@ -60,7 +60,7 @@ class Map:
 # A* Algorithm
 # ==========================
 def heuristic(a, b):
-    return math.sqrt((a[0] - b[0])**2 + (a[1] - b[1])**2)
+    return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
 
 def reconstruct_path(came_from, current):
@@ -118,7 +118,7 @@ def a_star(graph, start, goal):
 # ==========================
 def main():
 
-    map_graph = Map(13, 10)
+    map_graph = Map(13, 9)
 
     # Add Obstacles
     for x in range(3, 10):
@@ -137,8 +137,8 @@ def main():
         map_graph.add_rect(6, y)
         map_graph.add_obstacle(6, y)
 
-    start = (1, 5)
-    goal = (11, 5)
+    start = (1, 6)
+    goal = (11, 6)
 
     # Draw start and goal
     map_graph.add_rect(*start, color='limegreen')
@@ -146,6 +146,7 @@ def main():
 
     # Run A*
     path = a_star(map_graph.graph, start, goal)
+    print("Path:", path)
 
     # Draw Path
     if path:
