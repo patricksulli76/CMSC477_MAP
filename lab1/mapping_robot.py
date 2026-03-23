@@ -11,7 +11,8 @@ import math
 import map
 import a_star_solver
 
-map_graph = map.Map(13,11, (1,5),(11,5))
+#map_graph = map.Map(13,11, (1,5),(11,5))
+map_graph = map.Map(13,11, (11,5),(1,5))
 
 sq_size = 0.266 # meters
 
@@ -53,11 +54,14 @@ map_graph.add_rect(1, 5, color='limegreen')
 map_graph.add_rect(11, 5, color='orangered')
 
 
+vel_x, vel_y = 0,0
+axis = (1,1)
 
 def set_vel(ep_chassis,curr_pos,target_pos):
-    goal_x,goal_y = (target_pos[0]-curr_pos[0],target_pos[1]-curr_pos[1])
+    goal_x,goal_y = (target_pos[0]-curr_pos[0]+.5,target_pos[1]-curr_pos[1]-.5)
 
     k = 0.1
+
 
     if(abs(goal_x) < .05):
         vel_x = 0
@@ -69,12 +73,13 @@ def set_vel(ep_chassis,curr_pos,target_pos):
     else:
         vel_y = k if goal_y > 0 else -k
     
-    #print("dists: ", dist_x, dist_y)
+    print("dists: ", goal_x, goal_y)
+    
 
     if(vel_x == 0 and vel_y == 0):
         return True
-
-    ep_chassis.drive_speed(x=vel_x, y=-vel_y, z=0)
+    print("Vels: ", vel_x*axis[0], -vel_y*axis[1])
+    ep_chassis.drive_speed(x=vel_x*axis[0], y=-vel_y*axis[1], z=0)
     time.sleep(0.1)
     return False
 
@@ -156,18 +161,23 @@ def detect_tag_loop(ep_robot, ep_chassis, ep_camera, apriltag):
                     # print('Scaled', scaled)
                     orientation = apriltag_to_grid[id][2]
 
+                    
                     if orientation == "D":
                         y_val = apriltag_to_grid[id][1] - scaled[2]
                         x_val = apriltag_to_grid[id][0] - scaled[0]
+                        axis = (1,-1)
                     elif orientation == "U":
                         y_val = apriltag_to_grid[id][1] + scaled[2]
                         x_val = apriltag_to_grid[id][0] + scaled[0]
+                        axis = (-1,1)
                     elif orientation == "R":
                         y_val = apriltag_to_grid[id][1] - scaled[0]
                         x_val = apriltag_to_grid[id][0] + scaled[2]
+                        axis = (-1,-1)
                     elif orientation == "L":
                         y_val = apriltag_to_grid[id][1] + scaled[0]
                         x_val = apriltag_to_grid[id][0] - scaled[2]
+                        axis = (1,1)
                     x_sum += x_val * weight
                     y_sum += y_val * weight
                     total_weight += weight
@@ -190,8 +200,17 @@ def detect_tag_loop(ep_robot, ep_chassis, ep_camera, apriltag):
                 if set_vel(ep_chassis,(x_avg,y_avg),map_path[curr_point]):
                     curr_point+=1
         else:
-            localizing += 90
-            ep_chassis.move(x=0, y=0, z=90, z_speed=45).wait_for_completed()
+
+            #localizing += 90
+            if (vel_x > 0):
+                ep_chassis.move(x=-0.1, y=0, z=0, xy_speed=0.2).wait_for_completed()
+            elif (vel_x > 0):
+                ep_chassis.move(x=-0.1, y=0, z=0, xy_speed=0.2).wait_for_completed()
+            if (vel_y > 0):
+                ep_chassis.move(x=0, y=.1, z=0, xy_speed=0.2).wait_for_completed()
+            elif (vel_y > 0):
+                ep_chassis.move(x=0, y=-.1, z=0, xy_speed=0.2).wait_for_completed()
+            #ep_chassis.move(x=0, y=0, z=90, z_speed=45).wait_for_completed()
             
 
         draw_detections(img, detections)
