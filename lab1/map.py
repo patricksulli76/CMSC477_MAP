@@ -34,14 +34,6 @@ class Map:
                     self.graph[(x, y)].append((x, y - 1))
                 if y < size_y - 1:
                     self.graph[(x, y)].append((x, y + 1))
-                if x > 0 and y > 0:
-                    self.graph[(x, y)].append((x - 1, y - 1))
-                if x < size_x - 1 and y > 0:
-                    self.graph[(x, y)].append((x + 1, y - 1))
-                if x > 0 and y < size_y - 1:
-                    self.graph[(x, y)].append((x - 1, y + 1))
-                if x < size_x - 1 and y < size_y - 1:
-                    self.graph[(x, y)].append((x + 1, y + 1))
 
     def add_obstacle(self, x, y):
         self.graph_heuristic[(x,y)] = math.inf
@@ -74,6 +66,9 @@ class Map:
         self.fig.canvas.draw_idle()
         self.fig.canvas.flush_events()
         plt.pause(0.001)
+    def remove_all_edges(self):
+        for line in self.ax.lines[:]:
+            line.remove()
 
 
     

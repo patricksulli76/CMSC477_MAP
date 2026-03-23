@@ -11,9 +11,9 @@ import math
 import map
 import a_star_solver
 
-map_graph = map.Map(13,11, (1,6),(11,6))
-#map_graph = map.Map(13,11, (11,5),(1,5))
-orientation = "L"
+map_graph = map.Map(13,10, (1,6),(11,6))
+#map_graph = map.Map(13,11, (11,6),(1,6))
+
 
 sq_size = 0.266 # meters
 
@@ -51,8 +51,8 @@ for y in range(1, 6):
     map_graph.add_rect(6, y)
     map_graph.add_obstacle(6, y)
 
-map_graph.add_rect(1, 5, color='limegreen')
-map_graph.add_rect(11, 5, color='orangered')
+map_graph.add_rect(map_graph.start[0], map_graph.start[1], color='limegreen')
+map_graph.add_rect(map_graph.finish[0], map_graph.finish[1], color='orangered')
 
 
 vel_x, vel_y = 0,0
@@ -60,53 +60,54 @@ axis = (1,1)
 
 
 
-def set_vel(ep_chassis,curr_pos,target_pos):
+def set_vel(ep_chassis,curr_pos,target_pos,orientation):
 
     x_target = target_pos[0]-curr_pos[0]
     y_target = target_pos[1]-curr_pos[1]
-    dist_x,dist_y = (0,0)
+    dist_x,dist_y = x_target,y_target
 
-    if orientation == "L":
-        dist_x = x_target
-        dist_y = y_target
-    elif orientation == "D":
-        dist_x = -y_target
-        dist_y = x_target
-    elif orientation == "R":
-        dist_x = -x_target
-        dist_y = -y_target
-    elif orientation == "U":
-        dist_x = y_target
-        dist_y = -x_target
+    # if orientation == "L":
+    #     dist_x = x_target
+    #     dist_y = y_target
+    # elif orientation == "U":
+    #     dist_x = -y_target
+    #     dist_y = x_target
+    # elif orientation == "R":
+    #     dist_x = -x_target
+    #     dist_y = -y_target
+    # elif orientation == "D":
+    #     dist_x = y_target
+    #     dist_y = -x_target
 
     k = 0.1
 
 
-    if(abs(dist_x) < .05):
+    if(abs(dist_x) < .2):
         vel_x = 0
     else:
         vel_x = k if dist_x > 0 else -k
 
-    if(abs(dist_y) < .05):
+    if(abs(dist_y) < .2):
         vel_y = 0
     else:
         vel_y = k if dist_y > 0 else -k
     
+    
     print("distance to goal: ", dist_x, dist_y)
     
-
+    print("Orientation:",orientation)
     if(vel_x == 0 and vel_y == 0):
         return True
-    print("Vels: ", vel_x*axis[0], -vel_y*axis[1])
+    print("Vels: ", vel_x, -vel_y)
 
     if orientation == "L":
         ep_chassis.drive_speed(x=vel_x, y=-vel_y, z=0)
     elif orientation == "D":
-        ep_chassis.drive_speed(x=vel_y, y=vel_x, z=0)
+        ep_chassis.drive_speed(x=-vel_y, y=vel_x, z=0)
     elif orientation == "R":
         ep_chassis.drive_speed(x=-vel_x, y=vel_y, z=0)
     elif orientation == "U":
-        ep_chassis.drive_speed(x=-vel_y, y=vel_x, z=0)
+        ep_chassis.drive_speed(x=vel_y, y=-vel_x, z=0)
     #ep_chassis.drive_speed(x=vel_x*axis[0], y=-vel_y*axis[1], z=0)
     time.sleep(0.1)
     return False
@@ -160,6 +161,7 @@ def detect_tag_loop(ep_robot, ep_chassis, ep_camera, apriltag):
     localizing = 0
     curr_point = 0
     while True:
+        
         try:
             img = ep_camera.read_cv2_image(strategy="newest", timeout=0.5)
         except Empty:
@@ -171,10 +173,13 @@ def detect_tag_loop(ep_robot, ep_chassis, ep_camera, apriltag):
 
 
         detections = apriltag.find_tags(gray)
+        min_weight = 100000
+        target_id = 0
         if len(detections) > 0:
             x_sum = 0
             y_sum = 0
             total_weight = 1e-6
+
             for detection in detections:
                 if detection.decision_margin < 25: 
                     continue
@@ -188,6 +193,9 @@ def detect_tag_loop(ep_robot, ep_chassis, ep_camera, apriltag):
                     scaled = t_ca / sq_size
                     distance = np.linalg.norm(t_ca)
                     weight = 1.0 / (distance**2 + 1e-6)
+                    if weight < min_weight:
+                        min_weight = weight
+                        target_id = id
                     # print('Scaled', scaled)
                     orientation = apriltag_to_grid[id][2]
 
@@ -207,24 +215,36 @@ def detect_tag_loop(ep_robot, ep_chassis, ep_camera, apriltag):
                     x_sum += x_val * weight
                     y_sum += y_val * weight
                     total_weight += weight
+
                 except:
                     continue
             
             x_avg = x_sum / total_weight
             y_avg = y_sum / total_weight
+            orientation =  apriltag_to_grid[target_id][2]
+            tag_x = apriltag_to_grid[target_id][0]
+            tag_y = apriltag_to_grid[target_id][1]
+
+            print("Orient Mikolaj: ", orientation)
+            map_path = a_star_solver.a_star(map_graph.graph,(int(x_avg),int(y_avg)),map_graph.finish)
+            map_graph.remove_all_edges()
+            for i in range(len(map_path)-1):
+                map_graph.add_edge(map_path[i][0], map_path[i][1], map_path[i+1][0], map_path[i+1][1])
+
             print('x_avg, y_avg:', x_avg, y_avg)
             map_graph.remove_last_point()
             map_graph.add_point(x_avg, y_avg)
             map_graph.show_graph()
-            print('goal_x, goal_y:', map_path[curr_point][0], map_path[curr_point][1])
-            if (localizing != 0):
-                localizing += 90
-                ep_chassis.move(x=0, y=0, z=90, z_speed=45).wait_for_completed()
-                if localizing == 360:
-                    localizing = 0
-            if(curr_point < len(map_path) and localizing == 0):
-                if set_vel(ep_chassis,(x_avg,y_avg),map_path[curr_point]):
-                    curr_point+=1
+            print('goal_x, goal_y:', map_path[1][0], map_path[1][1])
+            offset = 0.5
+            target_x = map_path[1][0]
+            target_y = map_path[1][1]
+            if abs(tag_x-map_path[1][0])<offset:
+                target_x += tag_x-map_path[1][0]
+            if abs(tag_y-map_path[1][0])<offset:
+                target_y += tag_y-map_path[1][0]
+
+            set_vel(ep_chassis,(x_avg,y_avg),(target_x,target_y),orientation)
         else:
 
             #localizing += 90
@@ -236,7 +256,10 @@ def detect_tag_loop(ep_robot, ep_chassis, ep_camera, apriltag):
             #     ep_chassis.move(x=0, y=.1, z=0, xy_speed=0.2).wait_for_completed()
             # elif (vel_y > 0):
             #     ep_chassis.move(x=0, y=-.1, z=0, xy_speed=0.2).wait_for_completed()
+
             ep_chassis.move(x=0, y=0, z=90, z_speed=45).wait_for_completed()
+            ep_chassis.move(x=-0.1, y=0.0, z=0, xy_speed=0.2).wait_for_completed()
+            
             
 
         draw_detections(img, detections)
