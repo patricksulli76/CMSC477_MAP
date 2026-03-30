@@ -28,6 +28,7 @@ if __name__ == '__main__':
 
     # robomaster.config.ROBOT_IP_STR = "192.68.50.113"
     # ep_robot = robot.Robot()
+
     # ep_robot.initialize(conn_type="sta",sn="3JKCH8800100YN")
 
     helper = conn.ConnectionHelper()

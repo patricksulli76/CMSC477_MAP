@@ -276,7 +276,7 @@ if __name__ == '__main__':
     ep_robot.initialize(conn_type="sta", sn="3JKCH8800100YN")
     ep_chassis = ep_robot.chassis
     ep_camera = ep_robot.camera
-    ep_camera.start_video_stream(display=False, resolution=camera.STREAM_360P)
+    ep_camera.start_video_stream(display=True, resolution=camera.STREAM_360P)
 
     K = np.array([[314, 0, 320], [0, 314, 180], [0, 0, 1]]) # Camera focal length and center pixel
     marker_size_m = 0.153 # Size of the AprilTag in meters
