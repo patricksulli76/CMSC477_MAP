@@ -1,0 +1,7 @@
+path: ./images  # Use the absolute path to be safe
+train: train
+val: validation
+nc: 2  # Set this to 2 because you have two distinct objects
+names: 
+  0: blocks
+  1: robot
