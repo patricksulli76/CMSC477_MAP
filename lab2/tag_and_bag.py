@@ -51,7 +51,7 @@ if __name__ == '__main__':
     CENTER_X = 320         
     VISIBLE_GRAB_THRESHOLD = 240 
     BLIND_SPOT_Y = 410     
-    DRIVE_SPEED = 0.08     
+    DRIVE_SPEED = 0.04     
     SEARCH_TIMEOUT = 15.0 
 
     print("Initializing Robot...")
@@ -62,13 +62,15 @@ if __name__ == '__main__':
         print(f"Connection failed: {e}")
         exit()
 
+    time.sleep(3)
+
     ep_chassis = ep_robot.chassis
     ep_arm = ep_robot.robotic_arm
     ep_gripper = ep_robot.gripper
     ep_camera = ep_robot.camera
     model = YOLO(MODEL_PATH)
 
-    ep_arm.moveto(x=180, y=-90).wait_for_completed()
+    ep_arm.moveto(x=180, y=-10).wait_for_completed()
     ep_gripper.open(power=50)
     time.sleep(1)   
 
@@ -108,7 +110,7 @@ if __name__ == '__main__':
                 else:
                     ep_chassis.drive_speed(x=DRIVE_SPEED, y=0, z=error_x * 0.005)
             
-            else:
+            elif (time.time() - last_seen_time) > 1.0:
                 # --- LEGO LOST ---
                 if last_y > BLIND_SPOT_Y and abs(last_x - CENTER_X) < 60:
                     # Blind spot logic remains the same
@@ -128,7 +130,7 @@ if __name__ == '__main__':
                     
                     # Spin at 20 deg/s to find next target
                     # If it sees a LEGO, the 'if len(boxes) > 0' block will interrupt this
-                    ep_chassis.drive_speed(x=0, y=0, z=20) 
+                    ep_chassis.drive_speed(x=0, y=0, z=5) 
 
             annotated_frame = results[0].plot()
             cv2.imshow("RoboMaster YOLO View", annotated_frame)
