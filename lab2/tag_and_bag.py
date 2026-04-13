@@ -35,21 +35,27 @@ def execute_delivery_sequence(robot_obj):
 
     print(">>> RETURNING TO SEARCH AREA")
     chassis.move(x=-1).wait_for_completed() 
-    arm.moveto(x=180, y=-90).wait_for_completed() 
+    arm.moveto(x=180, y=-10).wait_for_completed() 
     chassis.move(z=90).wait_for_completed()
     chassis.move(x=0.3).wait_for_completed() 
 
-    print(">>> FLUSHING CAMERA BUFFER...")
-    time.sleep(1.5) 
-    for _ in range(10):
-        camera.read_cv2_image(strategy="newest")
+    flush_camera(robot_obj)
     
     print(">>> READY FOR NEXT TARGET")
+
+def flush_camera(robot_obj):
+    camera = robot_obj.camera
+    chassis = robot_obj.chassis
+    chassis.drive_speed(x=0, y=0, z=0)
+    print(">>> FLUSHING CAMERA BUFFER...")
+    time.sleep(0.5) 
+    for _ in range(10):
+        camera.read_cv2_image(strategy="newest")
 
 if __name__ == '__main__':
     MODEL_PATH = "best.pt"
     CENTER_X = 320         
-    VISIBLE_GRAB_THRESHOLD = 240 
+    VISIBLE_GRAB_THRESHOLD = 300 
     BLIND_SPOT_Y = 410     
     DRIVE_SPEED = 0.04     
     SEARCH_TIMEOUT = 15.0 
@@ -80,6 +86,15 @@ if __name__ == '__main__':
     last_y = 0
     last_x = 0
     last_seen_time = time.time()
+    last_flush = time.time()
+    curr_state = 0
+
+    states = {
+        0: "SEARCHING",
+        1: "LOCKED IN",
+        2: "PICKUP",
+        3: "DELIVERING"
+    }
 
     try:
         print(f"Continuous Loop Started. Timeout: {SEARCH_TIMEOUT}s.")
@@ -89,8 +104,12 @@ if __name__ == '__main__':
 
             results = model(img, conf=0.5, verbose=False)
             
+            if (curr_state == 0 or curr_state == 1) and time.time() - last_flush > 8:
+                flush_camera(ep_robot)
+                last_flush = time.time()
             if len(results[0].boxes) > 0:
                 # --- LEGO FOUND: LOCK ON ---
+                curr_state = 1
                 last_seen_time = time.time() 
                 box = results[0].boxes[0]
                 coords = box.xyxy[0].cpu().numpy()
@@ -103,7 +122,9 @@ if __name__ == '__main__':
                     ep_chassis.drive_speed(x=0, y=error_x * -0.002, z=error_x * 0.008)
                 elif last_y > VISIBLE_GRAB_THRESHOLD:
                     ep_chassis.drive_speed(x=0, y=0, z=0)
+                    curr_state = 2
                     execute_pick_sequence(ep_robot)
+                    curr_state = 3
                     execute_delivery_sequence(ep_robot)
                     last_y, last_x = 0, 0
                     last_seen_time = time.time()
@@ -112,6 +133,7 @@ if __name__ == '__main__':
             
             elif (time.time() - last_seen_time) > 1.0:
                 # --- LEGO LOST ---
+                curr_state = 0
                 if last_y > BLIND_SPOT_Y and abs(last_x - CENTER_X) < 60:
                     # Blind spot logic remains the same
                     last_seen_time = time.time() 

@@ -32,7 +32,7 @@ if __name__ == '__main__':
     # ep_robot.initialize(conn_type="sta",sn="3JKCH8800100YN")
 
     helper = conn.ConnectionHelper()
-    info = helper.build_qrcode_string(ssid="RAL_robots", password="RAL2022robots")
+    info = helper.build_qrcode_string(ssid="RAL_robots_5G", password="RAL2022robots")
     myqr.run(words=info)
     time.sleep(1)
     img = Image.open(QRCODE_NAME)
