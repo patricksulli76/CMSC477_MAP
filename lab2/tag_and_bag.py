@@ -36,21 +36,21 @@ def solve_pnp_rectangle(corners_2d, dist_coeffs=None):
 
 
 DEFAULTS = {
-    "Red":   {"HL": 165, "HH": 179, "SL": 150, "SH": 255, "VL": 150, "VH": 255},
+    "Red":   {"HL": 165, "HH": 179, "SL": 50, "SH": 255, "VL": 150, "VH": 255},
     "Green": {"HL": 35, "HH": 85, "SL": 80, "SH": 255, "VL": 60, "VH": 255},
 }
+
+RED_RANGE   = {"lower": np.array([150, 50, 150]), "upper": np.array([179, 255, 255])}
+GREEN_RANGE = {"lower": np.array([35, 80, 60]),   "upper": np.array([85, 255, 255])}
 
 BOX_COLORS = {
     "Red":   (0, 0, 255),   # red in BGR
     "Green": (0, 255, 0),   # green in BGR
 }
 
-RED_RANGE  = {"lower": np.array([165, 150, 150]), "upper": np.array([179, 255, 255])}
-GREEN_RANGE = {"lower": np.array([35, 80, 60]),   "upper": np.array([85, 255, 255])}
 
 
-
-MIN_AREA = 100
+MIN_AREA = 50
 APPROX_EPS = 0.04
 
 def _order_corners(approx):
@@ -80,12 +80,12 @@ def build_mask(hsv, lower, upper):
     return mask
 
 
-def localize_rectangles(image, rect_width, rect_height,
+def localize_rectangles(image, camera_matrix, rect_width, rect_height,
                         dist_coeffs=None, min_area=MIN_AREA):
     """
     Detect the largest red and green rectangles in an image and return their
     translation vectors (pose) relative to the camera.
-
+ 
     Parameters
     ----------
     image : np.ndarray
@@ -100,7 +100,7 @@ def localize_rectangles(image, rect_width, rect_height,
         Distortion coefficients. Defaults to zero distortion.
     min_area : int
         Ignore contours smaller than this (px²).
-
+ 
     Returns
     -------
     (poses, annotated_image)
@@ -112,7 +112,7 @@ def localize_rectangles(image, rect_width, rect_height,
     """
     if dist_coeffs is None:
         dist_coeffs = np.zeros(5)
-
+ 
     half_w = rect_width / 2.0
     half_h = rect_height / 2.0
     obj_pts = np.array([
@@ -121,37 +121,34 @@ def localize_rectangles(image, rect_width, rect_height,
         [ half_w, -half_h, 0],
         [-half_w, -half_h, 0],
     ], dtype=np.float64)
-
+ 
     blurred = cv2.GaussianBlur(image, (5, 5), 0)
     hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
     annotated = image.copy()
-
+ 
     draw_colors = {"red": (0, 0, 255), "green": (0, 255, 0)}
     corner_labels = ["TL", "TR", "BR", "BL"]
     result = {"red": None, "green": None}
-
+ 
     for key, rng in [("red", RED_RANGE), ("green", GREEN_RANGE)]:
         mask = build_mask(hsv, rng["lower"], rng["upper"])
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL,
                                        cv2.CHAIN_APPROX_SIMPLE)
-
-        # keep only rectangular contours above min_area, pick the largest
-        rectangles = []
-        for c in contours:
-            area = cv2.contourArea(c)
-            if area < min_area:
-                continue
-            peri = cv2.arcLength(c, True)
-            approx = cv2.approxPolyDP(c, APPROX_EPS * peri, True)
-            if len(approx) == 4:
-                rectangles.append((area, c, approx))
-
-        if not rectangles:
+ 
+        # pick the largest contour above min_area (any shape)
+        valid = [(cv2.contourArea(c), c) for c in contours
+                 if cv2.contourArea(c) >= min_area]
+ 
+        if not valid:
             continue
-
-        _, biggest, approx = max(rectangles, key=lambda x: x[0])
-        corners = _order_corners(approx)
-
+ 
+        _, biggest = max(valid, key=lambda x: x[0])
+ 
+        # fit a rotated rectangle to whatever shape was found
+        rect = cv2.minAreaRect(biggest)          # ((cx,cy), (w,h), angle)
+        box = cv2.boxPoints(rect).astype(np.float64)  # 4 corners
+        corners = _order_corners(box)
+ 
         # ── solvePnP ──
         img_pts = corners.astype(np.float64).reshape(4, 1, 2)
         success, rvec, tvec = cv2.solvePnP(
@@ -160,25 +157,25 @@ def localize_rectangles(image, rect_width, rect_height,
         )
         if not success:
             continue
-
+ 
         result[key] = {"tvec": tvec, "rvec": rvec, "corners": corners}
-
+ 
         # ── draw ──
         color = draw_colors[key]
         cv2.drawContours(annotated, [biggest], -1, color, 3)
         pts_int = corners.astype(np.int32).reshape((-1, 1, 2))
         cv2.polylines(annotated, [pts_int], True, (255, 255, 255), 2)
-
+ 
         for i, (cx, cy) in enumerate(corners.astype(int)):
             cv2.circle(annotated, (cx, cy), 6, color, -1)
             cv2.circle(annotated, (cx, cy), 6, (255, 255, 255), 2)
             cv2.putText(annotated, corner_labels[i], (cx + 8, cy - 8),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
-
+ 
         # draw axes at rectangle center
         cv2.drawFrameAxes(annotated, camera_matrix, dist_coeffs,
                           rvec, tvec, rect_width * 0.4)
-
+ 
         # tvec label at centroid
         M = cv2.moments(biggest)
         if M["m00"] != 0:
@@ -191,7 +188,7 @@ def localize_rectangles(image, rect_width, rect_height,
                            (mcx + tw // 2 + 2, mcy + th // 2 + 4), color, -1)
             cv2.putText(annotated, txt, (mcx - tw // 2, mcy + th // 2),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
-
+ 
     return result, annotated
 
 
@@ -236,8 +233,10 @@ def execute_delivery_sequence(robot_obj):
     print(">>> READY FOR NEXT TARGET")
 
 def navigate_to_zone(robot_obj,zone_color,frame):
+    corners = None
     poses, annotated = localize_rectangles(
     frame,
+    camera_matrix,
     rect_width=0.216,    # physical width in metres
     rect_height=0.279,   # physical height in metres
     )
@@ -246,8 +245,7 @@ def navigate_to_zone(robot_obj,zone_color,frame):
         tvec = poses[zone_color]["tvec"]   # (3,1) translation
         rvec = poses[zone_color]["rvec"]   # (3,1) Rodrigues rotation
         corners = poses[zone_color]["corners"]  # (4,2) image corners TL/TR/BR/BL
-        print("tvec:", tvec, "rvec:", rvec, "corners:", corners)
-    return annotated
+    return annotated,poses[zone_color]
     
 
 def flush_camera(robot_obj):
@@ -259,9 +257,19 @@ def flush_camera(robot_obj):
     for _ in range(10):
         camera.read_cv2_image(strategy="newest")
 
+def pixel_to_camera_coords(u, v, Z, camera_matrix):
+    fx = camera_matrix[0, 0]
+    fy = camera_matrix[1, 1]
+    cx = camera_matrix[0, 2]
+    cy = camera_matrix[1, 2]
+    X = (u - cx) * Z / fx
+    Y = (v - cy) * Z / fy
+    return X, Y
+
 if __name__ == '__main__':
     MODEL_PATH = "best.pt"
-    CENTER_X = 320         
+    CENTER_X = 320    
+    CENTER_Y = 180           
     VISIBLE_GRAB_THRESHOLD = 320
     BLIND_SPOT_Y = 410     
     DRIVE_SPEED = 0.04     
@@ -315,6 +323,9 @@ if __name__ == '__main__':
 
     }
 
+    curr_state = 0
+    curr_color = "green"
+
     try:
         print(f"Continuous Loop Started. Timeout: {SEARCH_TIMEOUT}s.")
         while True:
@@ -328,43 +339,82 @@ if __name__ == '__main__':
 
 
             # ------------------------ STATE 0: SEARCHING ZONE -------------
+            # if curr_state == 0:
+
+
+
+
+        #     if poses[zone_color] is not None:
+        # tvec = poses[zone_color]["tvec"]   # (3,1) translation
+        # rvec = poses[zone_color]["rvec"]   # (3,1) Rodrigues rotation
+        # corners = poses[zone_color]["corners"]  # (4,2) image corners TL/TR/BR/BL
+
+
+            annotated_frame, pose = navigate_to_zone(ep_robot, curr_color, img)
+            #print(pose)
+
+            if pose is not None:
+                Z = Z = pose["tvec"][2][0]  # depth in meters
+                corners_2d = pose["corners"]  # (4,2) image corners TL/TR/BR/BL
+
+                center_X_m, center_Y_m = pixel_to_camera_coords(CENTER_X, CENTER_Y, Z, camera_matrix)
+                center_x, center_y = corners_2d.mean(axis=0)
+
+                print("Center x: ",center_x)
+                print("Center x_m: ",center_X_m)
+                
+                if center_x < CENTER_X - 20:
+                    print("Moving Left")
+                    ep_chassis.drive_speed(x=0, y=0, z=-5)
+                elif center_x > CENTER_X + 20:
+                    print("Moving Right")
+                    ep_chassis.drive_speed(x=0, y=0, z=5)
+                else:
+                    print("Moving Forward")
+                    ep_chassis.drive_speed(x=0.04, y=0, z=0)
+
+                
+            cv2.imshow("RoboMaster YOLO View", annotated_frame)
 
             # ------------------------ STATE 1: LOCKED IN TO ZONE ----------
 
 
             
-            if len(results[0].boxes) > 0:
-                box = results[0].boxes[0]
+            # if len(results[0].boxes) > 0:
+            #     box = results[0].boxes[0]
 
-                box = results[0].boxes[0]
-                # Extract x1, y1, x2, y2 from the tensor
-                x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
+            #     box = results[0].boxes[0]
+            #     # Extract x1, y1, x2, y2 from the tensor
+            #     x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
 
-                # Construct the 4 corners in the SPECIFIC order used in obj_pts:
-                # 1. Top-Left:     (x1, y1)
-                # 2. Top-Right:    (x2, y1)
-                # 3. Bottom-Right: (x2, y2)
-                # 4. Bottom-Left:  (x1, y2)
-                corners_2d = np.array([
-                    [x1, y1],
-                    [x2, y1],
-                    [x2, y2],
-                    [x1, y2]
-                ], dtype=np.float64)
-                tvec = solve_pnp_rectangle(corners_2d)
+            #     # Construct the 4 corners in the SPECIFIC order used in obj_pts:
+            #     # 1. Top-Left:     (x1, y1)
+            #     # 2. Top-Right:    (x2, y1)
+            #     # 3. Bottom-Right: (x2, y2)
+            #     # 4. Bottom-Left:  (x1, y2)
+            #     corners_2d = np.array([
+            #         [x1, y1],
+            #         [x2, y1],
+            #         [x2, y2],
+            #         [x1, y2]
+            #     ], dtype=np.float64)
+            #     tvec = solve_pnp_rectangle(corners_2d)
 
-                x_dist = tvec[0][0]  # Lateral (Left/Right)
-                y_dist = tvec[2][0]  # Depth (Forward/Distance)
+            #     x_dist = tvec[0][0]  # Lateral (Left/Right)
+            #     y_dist = tvec[2][0]  # Depth (Forward/Distance)
 
-                print(f"X (Lateral): {x_dist:.2f}")
-                print(f"Y (Vertical): {y_dist:.2f}")
+            #     print(f"X (Lateral): {x_dist:.2f}")
+            #     print(f"Y (Vertical): {y_dist:.2f}")
                 
-                # Total straight-line distance
-                distance = np.linalg.norm(tvec)
-                print(f"Total Distance: {distance:.2f}")
+            #     # Total straight-line distance
+            #     distance = np.linalg.norm(tvec)
+            #     print(f"Total Distance: {distance:.2f}")
 
-            annotated_frame = results[0].plot()
-            cv2.imshow("RoboMaster YOLO View", annotated_frame)
+
+            # annotated_frame = navigate_to_zone(ep_robot, "green", img)
+            # #print(len(results[0].boxes))
+            # #annotated_frame = results[0].plot()
+            # cv2.imshow("RoboMaster YOLO View", annotated_frame)
 
             
 
