@@ -50,7 +50,7 @@ BOX_COLORS = {
 
 
 
-MIN_AREA = 50
+MIN_AREA = 200
 APPROX_EPS = 0.04
 
 def _order_corners(approx):
@@ -212,7 +212,7 @@ def execute_delivery_sequence(robot_obj):
     camera = robot_obj.camera
 
     print(">>> ROTATING 90 DEGREES RIGHT TO DEPOSIT")
-    chassis.move(z=-90).wait_for_completed()
+    chassis.move(z=-180).wait_for_completed()
     
     print(">>> MOVING 0.5M TO DELIVERY POINT")
     chassis.move(x=0.5).wait_for_completed()
@@ -224,9 +224,7 @@ def execute_delivery_sequence(robot_obj):
 
     print(">>> RETURNING TO SEARCH AREA")
     chassis.move(x=-1).wait_for_completed() 
-    arm.moveto(x=180, y=-10).wait_for_completed() 
-    chassis.move(z=90).wait_for_completed()
-    chassis.move(x=0.3).wait_for_completed() 
+    arm.moveto(x=180, y=-10).wait_for_completed()
 
     flush_camera(robot_obj)
     
@@ -268,6 +266,7 @@ def pixel_to_camera_coords(u, v, Z, camera_matrix):
 
 if __name__ == '__main__':
     MODEL_PATH = "best.pt"
+    #MODEL_PATH = "better.pt"
     CENTER_X = 320    
     CENTER_Y = 180           
     VISIBLE_GRAB_THRESHOLD = 320
@@ -302,7 +301,6 @@ if __name__ == '__main__':
     last_x = 0
     last_seen_time = time.time()
     last_flush = time.time()
-    curr_state = 0
 
     states = {
         0: "SEARCHING",
@@ -313,73 +311,157 @@ if __name__ == '__main__':
 
     real_states = {
         0: "SEARCHING ZONE",
-        1: "LOCKED IN TO ZONE",
-        2: "SEARCHING BLOCK",
-        3: "LOCKED IN TO BLOCK",
-        4: "PICKING UP",
-        5: "DELIVERING TO TEMP ZONE",
-        6: "DELIVERING TO DROP ZONE",
-        7: "END MISSION",
+        1: "SEARCHING BLOCK",
+        2: "DELIVERING TO TEMP ZONE",
+        3: "DELIVERING TO DROP ZONE",
+        4: "END MISSION",
 
     }
 
     curr_state = 0
+    holding_block = False
     curr_color = "green"
+    got_temp = False
+    lr_counter = 0
 
     try:
         print(f"Continuous Loop Started. Timeout: {SEARCH_TIMEOUT}s.")
         while True:
             img = ep_camera.read_cv2_image(strategy="newest", timeout=2)
             if img is None: continue
-
+            annotated_frame = None
             results = model(img, conf=0.5, verbose=False)
 
             # ------------------------ STATE MACHINE------------------------
-
+            if(time.time() - last_flush) > 8:
+                flush_camera(ep_robot)
+                ep_chassis.drive_speed(x=0, y=0, z=0)
+                last_flush = time.time()
 
 
             # ------------------------ STATE 0: SEARCHING ZONE -------------
-            # if curr_state == 0:
+            if curr_state == 0:
+                annotated_frame, pose = navigate_to_zone(ep_robot, curr_color, img)
+
+                if pose is not None:
+                    Z = Z = pose["tvec"][2][0]  # depth in meters
+                    corners_2d = pose["corners"]  # (4,2) image corners TL/TR/BR/BL
+
+                    center_X_m, center_Y_m = pixel_to_camera_coords(CENTER_X, CENTER_Y, Z, camera_matrix)
+                    center_x, center_y = corners_2d.mean(axis=0)
+
+                    print("Center x: ",center_x)
+                    print("Center x_m: ",center_X_m)
+                    print("Z: ",Z)
 
 
+                    if ((center_x < CENTER_X - 20) and holding_block == False) or ((center_x < CENTER_X - 80 and holding_block == True)):
+                        print("Moving Left")
+                        lr_counter +=1
+                        ep_chassis.drive_speed(x=0, y=0, z=-5)
+                    elif ((center_x > CENTER_X + 20) and holding_block == False) or ((center_x > CENTER_X + 80 and holding_block == True)):
+                        print("Moving Right")
+                        lr_counter +=1
+                        ep_chassis.drive_speed(x=0, y=0, z=5)
+                    else:
+                        print(center_x, CENTER_X)
+                        print("Moving Forward")
+                        ep_chassis.drive_speed(x=0.2, y=0, z=0)
 
+                    print("LR Counter: ", lr_counter)
+                    if (Z < 0.4 and holding_block == False) or (lr_counter > 150 and holding_block == True):
+                        ep_arm.moveto(x=180, y=-10).wait_for_completed()
+                        ep_gripper.open(power=50)
+                        time.sleep(1)   
+                        curr_state = 1
+                        lr_counter = 0
+                        if holding_block == True:
+                            ep_chassis.move(x=-0.2).wait_for_completed()
+                            ep_chassis.move(z=-90).wait_for_completed()
+                            holding_block = False
+                        flush_camera(ep_robot)
+                        last_flush = time.time()
 
-        #     if poses[zone_color] is not None:
-        # tvec = poses[zone_color]["tvec"]   # (3,1) translation
-        # rvec = poses[zone_color]["rvec"]   # (3,1) Rodrigues rotation
-        # corners = poses[zone_color]["corners"]  # (4,2) image corners TL/TR/BR/BL
+                            
 
-
-            annotated_frame, pose = navigate_to_zone(ep_robot, curr_color, img)
-            #print(pose)
-
-            if pose is not None:
-                Z = Z = pose["tvec"][2][0]  # depth in meters
-                corners_2d = pose["corners"]  # (4,2) image corners TL/TR/BR/BL
-
-                center_X_m, center_Y_m = pixel_to_camera_coords(CENTER_X, CENTER_Y, Z, camera_matrix)
-                center_x, center_y = corners_2d.mean(axis=0)
-
-                print("Center x: ",center_x)
-                print("Center x_m: ",center_X_m)
-                
-                if center_x < CENTER_X - 20:
-                    print("Moving Left")
-                    ep_chassis.drive_speed(x=0, y=0, z=-5)
-                elif center_x > CENTER_X + 20:
-                    print("Moving Right")
-                    ep_chassis.drive_speed(x=0, y=0, z=5)
                 else:
-                    print("Moving Forward")
-                    ep_chassis.drive_speed(x=0.04, y=0, z=0)
+                    ep_chassis.drive_speed(x=0, y=0, z=10)
 
-                
-            cv2.imshow("RoboMaster YOLO View", annotated_frame)
+                    
+                cv2.imshow("RoboMaster YOLO View", annotated_frame)
 
-            # ------------------------ STATE 1: LOCKED IN TO ZONE ----------
+            # ------------------------ STATE 0: SEARCHING BLOCK ----------
+
+            if curr_state != 1:
+                last_read_depths = [100,100,100]
+                curr_depth_index = 0
+            if curr_state == 1:
+                # Show YOLO detection results for blocks
+                annotated_frame = results[0].plot()
 
 
-            
+
+                if len(results[0].boxes) > 0:
+                    last_seen_time = time.time()
+                    box = results[0].boxes[0]
+                    x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
+                    # Order: TL, TR, BR, BL
+                    corners_2d = np.array([
+                        [x1, y1],
+                        [x2, y1],
+                        [x2, y2],
+                        [x1, y2]
+                    ], dtype=np.float64)
+                    tvec = solve_pnp_rectangle(corners_2d)
+                    x_dist = tvec[0][0]  # Lateral (Left/Right)
+                    y_dist = tvec[2][0]  # Depth (Forward/Distance)
+                    print(f"Block X (Lateral): {x_dist:.2f}")
+                    print(f"Block Y (Depth): {y_dist:.2f}")
+
+                    last_read_depths[curr_depth_index] = y_dist
+                    curr_depth_index += 1
+
+                    if curr_depth_index > 2:
+                        curr_depth_index = 0
+
+                    if(x_dist < -0.02):
+                        print("Block to the Left, moving Left")
+                        ep_chassis.drive_speed(x=0, y=0, z=-5)
+                    elif(x_dist > 0.02):
+                        print("Block to the Right, moving Right")
+                        ep_chassis.drive_speed(x=0, y=0, z=5)
+                    else:
+                        ep_chassis.drive_speed(x=0.12, y=0, z=0)
+
+                    if(sum(last_read_depths)/3 < 0.15):
+                        print("Block within reach, executing pick se0quence")
+                        ep_chassis.drive_speed(x=0, y=0, z=0)
+                        execute_pick_sequence(ep_robot)
+                        if(got_temp == False):
+                            curr_state = 2
+                        else:
+                            curr_color = "red" if curr_color == "green" else "green"
+                            ep_arm.moveto(x=180, y=-20).wait_for_completed()
+                            time.sleep(1)   
+                            ep_chassis.move(z=180).wait_for_completed()
+                            time.sleep(1)
+                            holding_block = True
+                            lr_counter = 0
+                            curr_state = 0
+                else:
+                    if(time.time() - last_seen_time) > 2.0:
+                        ep_chassis.drive_speed(x=0, y=0, z=-5)
+                    # Use x_dist, y_dist for navigation logic
+                    # Example: move forward if y_dist > threshold, align if x_dist is off-center
+            if curr_state == 2:
+                print("Delivering to temp zone")
+                execute_delivery_sequence(ep_robot)
+                curr_color = "red" if curr_color == "green" else "green"
+                got_temp = True
+                curr_state = 0
+                lr_counter = 0
+            if annotated_frame is not None:
+                cv2.imshow("RoboMaster YOLO View", annotated_frame)
             # if len(results[0].boxes) > 0:
             #     box = results[0].boxes[0]
 
