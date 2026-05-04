@@ -50,7 +50,7 @@ BOX_COLORS = {
 
 
 
-MIN_AREA = 200
+MIN_AREA = 300
 APPROX_EPS = 0.04
 
 def _order_corners(approx):
@@ -215,7 +215,7 @@ def execute_delivery_sequence(robot_obj):
     chassis.move(z=-180).wait_for_completed()
     
     print(">>> MOVING 0.5M TO DELIVERY POINT")
-    chassis.move(x=0.5).wait_for_completed()
+    chassis.move(x=0.25).wait_for_completed()
     
     print(">>> LOWERING AND RELEASING")
     arm.moveto(x=185, y=-70).wait_for_completed()
@@ -223,7 +223,7 @@ def execute_delivery_sequence(robot_obj):
     time.sleep(1.0)
 
     print(">>> RETURNING TO SEARCH AREA")
-    chassis.move(x=-1).wait_for_completed() 
+    chassis.move(x=-0.3).wait_for_completed() 
     arm.moveto(x=180, y=-10).wait_for_completed()
 
     flush_camera(robot_obj)
@@ -355,27 +355,28 @@ if __name__ == '__main__':
                     print("Z: ",Z)
 
 
-                    if ((center_x < CENTER_X - 20) and holding_block == False) or ((center_x < CENTER_X - 80 and holding_block == True)):
+                    if ((center_x < CENTER_X - 20) and holding_block == False) or ((center_x < CENTER_X - 90 and holding_block == True)):
                         print("Moving Left")
                         lr_counter +=1
                         ep_chassis.drive_speed(x=0, y=0, z=-5)
-                    elif ((center_x > CENTER_X + 20) and holding_block == False) or ((center_x > CENTER_X + 80 and holding_block == True)):
+                    elif ((center_x > CENTER_X + 20) and holding_block == False) or ((center_x > CENTER_X + 90 and holding_block == True)):
                         print("Moving Right")
                         lr_counter +=1
                         ep_chassis.drive_speed(x=0, y=0, z=5)
                     else:
                         print(center_x, CENTER_X)
                         print("Moving Forward")
-                        ep_chassis.drive_speed(x=0.2, y=0, z=0)
+                        ep_chassis.drive_speed(x=0.1, y=0, z=0)
 
                     print("LR Counter: ", lr_counter)
-                    if (Z < 0.4 and holding_block == False) or (lr_counter > 150 and holding_block == True):
+                    if (Z < 0.4 and holding_block == False) or ((Z < 0.4 or lr_counter > 50 or Z >1.7) and holding_block == True):
                         ep_arm.moveto(x=180, y=-10).wait_for_completed()
                         ep_gripper.open(power=50)
                         time.sleep(1)   
                         curr_state = 1
                         lr_counter = 0
                         if holding_block == True:
+                            print("Dropping Block")
                             ep_chassis.move(x=-0.2).wait_for_completed()
                             ep_chassis.move(z=-90).wait_for_completed()
                             holding_block = False
@@ -431,9 +432,9 @@ if __name__ == '__main__':
                         print("Block to the Right, moving Right")
                         ep_chassis.drive_speed(x=0, y=0, z=5)
                     else:
-                        ep_chassis.drive_speed(x=0.12, y=0, z=0)
+                        ep_chassis.drive_speed(x=0.05, y=0, z=0)
 
-                    if(sum(last_read_depths)/3 < 0.15):
+                    if(sum(last_read_depths)/3 < 0.17):
                         print("Block within reach, executing pick se0quence")
                         ep_chassis.drive_speed(x=0, y=0, z=0)
                         execute_pick_sequence(ep_robot)
@@ -442,8 +443,11 @@ if __name__ == '__main__':
                         else:
                             curr_color = "red" if curr_color == "green" else "green"
                             ep_arm.moveto(x=180, y=-20).wait_for_completed()
-                            time.sleep(1)   
-                            ep_chassis.move(z=180).wait_for_completed()
+                            time.sleep(1)
+                            if curr_color == "green":   
+                                ep_chassis.move(z=180).wait_for_completed()
+                            else:
+                                ep_chassis.move(z=-180).wait_for_completed()
                             time.sleep(1)
                             holding_block = True
                             lr_counter = 0
