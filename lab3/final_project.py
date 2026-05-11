@@ -316,7 +316,42 @@ def draw_detections(frame, detections):
                     (0, 255, 0),      # Color (BGR format - Green)
                     2)                # Thickness
 
+def approach_tag(ep_chassis, t_ca):
+    x, y, z = t_ca
+    print(f"Approaching tag at distance {z:.2f}m with lateral offset {x:.2f}m")
 
+    # First align laterally (rotate to face the tag)
+    if x > 0.05:
+        # Tag is to the right, rotate clockwise
+        ep_chassis.drive_speed(x=0, y=0, z=-5)
+        print(f"Rotating right to face tag (x offset: {x:.2f}m)")
+        return False
+    elif x < -0.05:
+        # Tag is to the left, rotate counter-clockwise
+        ep_chassis.drive_speed(x=0, y=0, z=5)
+        print(f"Rotating left to face tag (x offset: {x:.2f}m)")
+        return False
+    else:
+        # Aligned, now move forward/backward to target distance
+        if z > 0.5:
+            ep_chassis.drive_speed(x=0.1, y=0, z=0)
+            print(f"Moving forward (distance: {z:.2f}m)")
+            return False
+        elif z < 0.3:
+            ep_chassis.drive_speed(x=-0.1, y=0, z=0)
+            print(f"Moving backward (distance: {z:.2f}m)")
+            return False
+        else:
+            ep_chassis.drive_speed(x=0, y=0, z=0)
+            print("At target position")
+            return True
+
+# Loading dock: W: 90cm, H: 70cm, Y: 26cm, X: 42cm (RIGHT TOP CORNER)
+def approach_charging_station(ep_chassis, t_ca):
+    if approach_tag(ep_chassis, t_ca):
+        time.sleep(5)
+        BATTERY_CHARGE = 1.0
+        ep_chassis.move(z=-180).wait_for_completed()
 ###################################################
 states = {
     0: "SEARCHING FOR BLOCK",
