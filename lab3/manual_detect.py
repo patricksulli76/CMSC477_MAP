@@ -121,8 +121,9 @@ if __name__ == '__main__':
     model = YOLO(MODEL_PATH)
 
     print("[Teleop] Connecting to robot...")
+    robomaster.config.ROBOT_IP_STR = "192.168.50.113"
     ep_robot = robot.Robot()
-    ep_robot.initialize(conn_type="sta")
+    ep_robot.initialize(conn_type="sta", sn="3JKCH8800100YN")
     ep_chassis = ep_robot.chassis
     ep_camera  = ep_robot.camera
     ep_camera.start_video_stream(display=False, resolution=camera.STREAM_360P)
