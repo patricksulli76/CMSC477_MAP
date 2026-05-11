@@ -1,0 +1,12 @@
+train: train/images
+val: val/images
+test: test/images
+nc: 7
+names:
+- block
+- robot
+- paper
+- yellow
+- purple
+- cone
+- fabric_box

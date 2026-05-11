@@ -18,6 +18,7 @@ import robomaster
 from robomaster import robot, camera
 import cv2
 import time
+import os
 
 if __name__ == '__main__':
     # Configuration
@@ -34,7 +35,9 @@ if __name__ == '__main__':
     print("Live feed started.")
     print("Commands: \n  Press 's' to Save Image \n  Press 'q' to Quit")
 
-    img_count = 84
+    img_count = 0
+    folder_name = "images"
+    os.makedirs(folder_name, exist_ok=True)  # Create folder if it doesn't exist
 
     try:
         while True:
@@ -48,11 +51,13 @@ if __name__ == '__main__':
             key = cv2.waitKey(1) & 0xFF
 
             # Capture image when 's' is pressed
-            folder_name = "robo_images"
             if key == ord('s'):
                 filename = f"{folder_name}/robomaster_cap_{img_count}.jpg"
-                cv2.imwrite(filename, frame)
-                print(f"Saved: {filename}")
+                success = cv2.imwrite(filename, frame)
+                if success:
+                    print(f"Saved: {filename}")
+                else:
+                    print(f"Failed to save: {filename}")
                 img_count += 1
 
             # Exit loop when 'q' is pressed
