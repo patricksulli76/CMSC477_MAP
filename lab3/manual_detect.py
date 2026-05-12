@@ -126,6 +126,8 @@ def keyboard_thread():
         elif ch == '\x03':   # CTRL+C
             _running = False
             break
+        else:
+            _vel["x"] = _vel["y"] = _vel["z"] = 0.0
 
 # ───────────────────────── MAIN ──────────────────────────────
 if __name__ == '__main__':
