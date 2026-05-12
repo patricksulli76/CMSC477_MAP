@@ -18,6 +18,16 @@ DRIVE_SPEED = 0.3
 TURN_SPEED  = 30
 camera_matrix = np.array([[314, 0, 320], [0, 314, 180], [0, 0, 1]])
 
+
+
+def flush_camera(robot_obj):
+    camera = robot_obj.camera
+    chassis = robot_obj.chassis
+    chassis.drive_speed(x=0, y=0, z=0)
+    print(">>> FLUSHING CAMERA BUFFER...")
+    time.sleep(0.5) 
+    for _ in range(10):
+        camera.read_cv2_image(strategy="newest")
 # ───────────────────────── APRIL TAG ─────────────────────────
 class AprilTagDetector:
     def __init__(self, K, family="tag36h11", threads=2, marker_size_m=0.16):
@@ -101,7 +111,7 @@ def _getch():
 
 def keyboard_thread():
     global _running
-    print("\n[Teleop] Controls: W/S=fwd/back  A/D=strafe  Q/E=turn  SPACE=stop  CTRL+C=quit\n")
+    print("\n[Teleop] Controls: W/S=fwd/back  A/D=strafe  Q/E=turn  SPACE=stop  F=flush camera  CTRL+C=quit\n")
     while _running:
         ch = _getch().lower()
         if ch in KEYMAP:
@@ -109,6 +119,10 @@ def keyboard_thread():
         elif ch == ' ':
             _vel["x"] = _vel["y"] = _vel["z"] = 0.0
             print("[Teleop] STOP")
+        elif ch == 'f':
+            print("[Teleop] Flushing camera...")
+            flush_camera(ep_robot)
+            print("[Teleop] Camera flushed.")
         elif ch == '\x03':   # CTRL+C
             _running = False
             break
